@@ -1,8 +1,6 @@
 # LifeOS
 
-> **The open-source operating system for your thoughts.**
-
----
+From carved stone and clay tablets to paper journals and digital notes, humans have always externalized memory and the way they capture life. LifeOS is the next evolution: an AI-native second brain that captures thoughts.
 
 ## License
 

@@ -1,0 +1,64 @@
+import json
+import os
+from pathlib import Path
+
+from dotenv import load_dotenv
+from groq import Groq
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+load_dotenv(SCRIPT_DIR / ".env")
+
+EXTENSIONS = {".m4a"}
+
+
+def main():
+    client = Groq()
+    input_dir = (SCRIPT_DIR / os.getenv("INPUT_AUDIO_DIR", "./input")).resolve()
+    output_dir = (SCRIPT_DIR / os.getenv("OUTPUT_DIR", "./output")).resolve()
+
+    files = sorted(f for f in input_dir.rglob("*") if f.is_file() and f.suffix.lower() in EXTENSIONS)
+    if not files:
+        print("No audio files found")
+        return
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    model = os.getenv("MODEL", "whisper-large-v3-turbo")
+    language = os.getenv("LANGUAGE") or None
+    prompt = os.getenv("PROMPT") or None
+    response_format = os.getenv("RESPONSE_FORMAT", "verbose_json")
+    temperature = float(os.getenv("TEMPERATURE", "0"))
+    granularities = [s.strip() for s in os.getenv("TIMESTAMP_GRANULARITIES", "segment,word").split(",") if s.strip()]
+
+    for f in files:
+        rel = f.relative_to(input_dir)
+        out_base = output_dir / rel.with_suffix("")
+        out_base.parent.mkdir(parents=True, exist_ok=True)
+        txt_path = out_base.with_suffix(".txt")
+        json_path = out_base.with_suffix(".json")
+
+        if txt_path.exists() and json_path.exists():
+            print(f"Skip {rel}")
+            continue
+
+        kwargs = {"file": open(f, "rb"), "model": model, "response_format": response_format, "temperature": temperature}
+        if language:
+            kwargs["language"] = language
+        if prompt:
+            kwargs["prompt"] = prompt
+        if response_format == "verbose_json" and granularities:
+            kwargs["timestamp_granularities"] = granularities
+
+        with kwargs["file"] as fp:
+            kwargs["file"] = fp
+            response = client.audio.transcriptions.create(**kwargs)
+
+        text = getattr(response, "text", "") or ""
+        data = response.model_dump() if hasattr(response, "model_dump") else {"text": text}
+
+        txt_path.write_text((text or "").strip() + "\n", encoding="utf-8")
+        json_path.write_text(json.dumps(data, indent=2, default=str) + "\n", encoding="utf-8")
+        print(f"Done {rel}")
+
+
+if __name__ == "__main__":
+    main()

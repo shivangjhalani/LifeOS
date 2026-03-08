@@ -6,15 +6,32 @@ from dotenv import load_dotenv
 from groq import Groq
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-load_dotenv(SCRIPT_DIR / ".env")
+PROJECT_ROOT = SCRIPT_DIR.parent
+
+# Load .env from project root (where .env lives)
+load_dotenv(PROJECT_ROOT / ".env")
 
 EXTENSIONS = {".m4a"}
 
 
+def _resolve_path_from_env(key: str, default: str) -> Path:
+    """Resolve a path from env: supports absolute paths, ~/home, and relative (from project root)."""
+    value = (os.getenv(key) or default).strip()
+    if not value:
+        value = default
+    path = Path(value).expanduser()
+    if not path.is_absolute():
+        path = PROJECT_ROOT / path
+    return path.resolve()
+
+
 def main():
     client = Groq()
-    input_dir = (SCRIPT_DIR / os.getenv("INPUT_AUDIO_DIR", "./input")).resolve()
-    output_dir = (SCRIPT_DIR / os.getenv("OUTPUT_DIR", "./output")).resolve()
+    input_dir = _resolve_path_from_env("INPUT_AUDIO_DIR", "./input")
+    output_dir = _resolve_path_from_env("OUTPUT_DIR", "./output")
+
+    if not input_dir.is_dir():
+        raise SystemExit(f"Input directory does not exist or is not a directory: {input_dir}")
 
     files = sorted(f for f in input_dir.rglob("*") if f.is_file() and f.suffix.lower() in EXTENSIONS)
     if not files:

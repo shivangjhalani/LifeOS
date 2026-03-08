@@ -41,7 +41,7 @@ def main():
     output_dir.mkdir(parents=True, exist_ok=True)
     model = os.getenv("MODEL", "whisper-large-v3-turbo")
     language = os.getenv("LANGUAGE") or None
-    prompt = os.getenv("PROMPT") or None
+    prompt = os.getenv("TRANS_PROMPT") or None
     response_format = os.getenv("RESPONSE_FORMAT", "verbose_json")
     temperature = float(os.getenv("TEMPERATURE", "0"))
     granularities = [s.strip() for s in os.getenv("TIMESTAMP_GRANULARITIES", "segment,word").split(",") if s.strip()]

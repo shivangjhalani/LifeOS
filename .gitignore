@@ -1,4 +1,6 @@
 private/
+.devenv/
+devenv.yaml
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -16,7 +18,7 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
+lib/.venv/, .devenv/ (runtime), .direnv/, .env.
 lib64/
 parts/
 sdist/

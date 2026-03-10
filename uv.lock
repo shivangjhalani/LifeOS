@@ -336,6 +336,7 @@ dependencies = [
     { name = "dotenv" },
     { name = "google-genai" },
     { name = "groq" },
+    { name = "pydantic" },
 ]
 
 [package.metadata]
@@ -343,6 +344,7 @@ requires-dist = [
     { name = "dotenv", specifier = ">=0.9.9" },
     { name = "google-genai", specifier = ">=1.0.0" },
     { name = "groq", specifier = ">=1.0.0" },
+    { name = "pydantic", specifier = ">=2.12.5" },
 ]
 
 [[package]]

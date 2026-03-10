@@ -21,23 +21,36 @@ load_dotenv(PROJECT_ROOT / ".env")
 FILENAME_DATE_RE = re.compile(r"^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z)")
 
 
-class JournalSummary(BaseModel):
-    date: datetime
-    duration_minutes: int
+class LLMJournalSummary(BaseModel):
     title: str = Field(description="Short descriptive title for this journal entry")
-
-    key_learnings: List[str] = Field(
-        description="Most important core insights (one line each, max 100 chars)"
-    )
-    memorable_quotes: List[str] = Field(
-        description="Most memorable direct quotes from transcript (max 150 chars)"
-    )
-    active_questions: List[str] = Field(
-        description="Most important unresolved questions or tensions (one line each, max 100 chars)"
+    mood: List[str] = Field(
+        description="1-3 emotional states during this journal (e.g., 'frustrated', 'hopeful', 'anxious', 'energized', 'reflective', 'confused')",
     )
     topics: List[str] = Field(
         description="Main themes discussed, for tagging/filtering"
     )
+    memorable_quotes: List[str] = Field(
+        description="Most memorable direct quotes from transcript (max 150 chars)"
+    )
+    key_learnings: List[str] = Field(
+        description="Most important core insights (one line each, max 100 chars)"
+    )
+    active_questions: List[str] = Field(
+        description="Most important unresolved questions or tensions (one line each, max 100 chars)"
+    )
+
+
+class JournalSummary(BaseModel):
+    # Locally controlled metadata first.
+    date: datetime
+    duration_minutes: int
+    # LLM-generated summary fields.
+    title: str
+    mood: List[str]
+    topics: List[str]
+    memorable_quotes: List[str]
+    key_learnings: List[str]
+    active_questions: List[str]
 
     transcript: str = Field(description="Full transcript text")
 
@@ -65,12 +78,18 @@ Analyze this {duration_minutes}-minute personal journal transcript.
 
 Extract the following, but ONLY if they meet the quality threshold:
 
-KEY LEARNINGS (1-5 items):
-- Extract ONLY genuine insights worth remembering
-- Each must be a concrete realization, not generic advice
-- One line each, max 100 chars
-- If the journal is sparse/surface-level, extract fewer (even 0-1)
-- Quality over quantity
+TITLE: A short descriptive title (max 60 chars)
+
+MOOD (1-3 tags):
+- Capture the dominant emotional states during journaling
+- Use specific emotions: frustrated, anxious, hopeful, energized, reflective, confused, determined, overwhelmed, excited, doubtful etc.
+- NOT generic states like "good" or "bad"
+- Choose 1-3 that best characterize the session
+
+TOPICS:
+- Specific concepts, people, companies, or situations discussed
+- NOT generic themes like "self-improvement" or "personal growth"
+- Include only topics that would be useful for filtering/searching later
 
 MEMORABLE QUOTES (0-3 items):
 - Extract ONLY quotes that uniquely capture your voice or a key insight
@@ -78,18 +97,18 @@ MEMORABLE QUOTES (0-3 items):
 - Max 150 chars each
 - Skip if no quotes meet this bar
 
+KEY LEARNINGS (1-5 items):
+- Extract ONLY genuine insights worth remembering
+- Each must be a concrete realization, not generic advice
+- One line each, max 100 chars
+- If the journal is sparse/surface-level, extract fewer (even 0-1)
+- Quality over quantity
+
 ACTIVE QUESTIONS (1-5 items):
 - Extract ONLY genuine unresolved tensions or questions
 - Must be specific, not generic wondering
 - One line each, max 100 chars
 - Fewer is better than low-quality items
-
-TOPICS:
-- Specific concepts, people, companies, or situations discussed
-- NOT generic themes like "self-improvement" or "personal growth"
-- Include only topics that would be useful for filtering/searching later
-
-TITLE: A short descriptive title (max 60 chars)
 
 CRITICAL: If the journal is sparse or conversational without deep insights, extract fewer items. An empty quotes array is better than forced padding.
 
@@ -130,15 +149,22 @@ def summarize(transcript: dict, date: datetime, api_key: str) -> JournalSummary:
         contents=prompt,
         config={
             "response_mime_type": "application/json",
-            "response_schema": JournalSummary,
+            "response_schema": LLMJournalSummary,
         },
     )
 
-    parsed = JournalSummary.model_validate_json(response.text)
-    parsed.date = date
-    parsed.duration_minutes = duration_minutes
-    parsed.transcript = text
-    return parsed
+    llm_summary = LLMJournalSummary.model_validate_json(response.text)
+    return JournalSummary(
+        date=date,
+        duration_minutes=duration_minutes,
+        title=llm_summary.title,
+        mood=llm_summary.mood,
+        topics=llm_summary.topics,
+        memorable_quotes=llm_summary.memorable_quotes,
+        key_learnings=llm_summary.key_learnings,
+        active_questions=llm_summary.active_questions,
+        transcript=text,
+    )
 
 
 def main() -> None:

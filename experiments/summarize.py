@@ -2,6 +2,7 @@
 """Summarize transcript JSON files using Gemini 2.5 Flash structured output."""
 
 import argparse
+import glob
 import json
 import os
 import re
@@ -27,7 +28,7 @@ class LLMJournalSummary(BaseModel):
         description="1-3 emotional states during this journal (e.g., 'frustrated', 'hopeful', 'anxious', 'energized', 'reflective', 'confused')",
     )
     topics: List[str] = Field(
-        description="Main themes discussed, for tagging/filtering"
+        description="Main themes discussed"
     )
     memorable_quotes: List[str] = Field(
         description="Most memorable direct quotes from transcript (max 150 chars)"
@@ -86,10 +87,10 @@ MOOD (1-3 tags):
 - NOT generic states like "good" or "bad"
 - Choose 1-3 that best characterize the session
 
-TOPICS:
-- Specific concepts, people, companies, or situations discussed
-- NOT generic themes like "self-improvement" or "personal growth"
-- Include only topics that would be useful for filtering/searching later
+TOPICS (3-6 items):
+- Concrete entities: people, companies, specific concepts
+- Broad themes useful for filtering (e.g., "career", "communication", "relationships")
+- NOT abstract states
 
 MEMORABLE QUOTES (0-3 items):
 - Extract ONLY quotes that uniquely capture your voice or a key insight
@@ -134,6 +135,38 @@ def load_transcript(path: Path) -> dict:
     return data
 
 
+def resolve_transcript_paths(inputs: List[str]) -> List[Path]:
+    """Resolve CLI inputs into transcript file paths.
+
+    Supports:
+    - direct file paths
+    - wildcard patterns (e.g. private/transcripts/*.json)
+    """
+    resolved: List[Path] = []
+    for raw in inputs:
+        # Expand wildcard patterns even if shell does not.
+        if any(ch in raw for ch in ["*", "?", "["]):
+            matches = glob.glob(
+                str((PROJECT_ROOT / raw).resolve()) if not Path(raw).is_absolute() else raw
+            )
+            resolved.extend(Path(m).resolve() for m in matches)
+            continue
+
+        p = Path(raw)
+        if not p.is_absolute():
+            p = (PROJECT_ROOT / p).resolve()
+        resolved.append(p)
+
+    # Deduplicate while preserving order.
+    deduped: List[Path] = []
+    seen = set()
+    for p in resolved:
+        if p not in seen:
+            deduped.append(p)
+            seen.add(p)
+    return deduped
+
+
 def summarize(transcript: dict, date: datetime, api_key: str) -> JournalSummary:
     """Generate a structured summary via Gemini 2.5 Flash."""
     client = genai.Client(api_key=api_key)
@@ -169,44 +202,66 @@ def summarize(transcript: dict, date: datetime, api_key: str) -> JournalSummary:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Summarize a transcript JSON file using Gemini structured output."
+        description="Summarize one or more transcript JSON files using Gemini structured output."
     )
     parser.add_argument(
-        "transcript",
-        type=Path,
-        help="Path to transcript JSON (e.g. private/transcripts/2025-03-14T10:41:33Z_Title.json)",
+        "transcripts",
+        nargs="+",
+        help="Transcript path(s) or glob(s), e.g. file1.json file2.json or private/transcripts/*.json",
     )
     parser.add_argument(
         "-o", "--output", type=Path, default=None,
-        help="Output path for summary JSON (default: private/summaries/<stem>_summary.json)",
+        help="Output path for single-input mode only (default: private/summaries/<stem>_summary.json)",
     )
     args = parser.parse_args()
 
-    transcript_path = args.transcript
-    if not transcript_path.is_absolute():
-        transcript_path = (PROJECT_ROOT / transcript_path).resolve()
-    if not transcript_path.exists():
-        parser.error(f"Transcript not found: {transcript_path}")
+    transcript_paths = resolve_transcript_paths(args.transcripts)
+    if not transcript_paths:
+        parser.error("No transcript files matched the provided inputs.")
+
+    if args.output and len(transcript_paths) > 1:
+        parser.error("--output can only be used when summarizing a single transcript.")
 
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
         parser.error("GEMINI_API_KEY not set. Add it to .env (copy from .example.env).")
 
-    date = parse_date_from_filename(transcript_path.name)
-    transcript = load_transcript(transcript_path)
-
-    print(f"Summarizing: {transcript_path.name}")
-    summary = summarize(transcript, date, api_key)
-
     PRIVATE_SUMMARIES.mkdir(parents=True, exist_ok=True)
-    if args.output:
-        out_path = args.output if args.output.is_absolute() else (PROJECT_ROOT / args.output).resolve()
-    else:
-        out_path = PRIVATE_SUMMARIES / f"{transcript_path.stem}_summary.json"
+    had_errors = False
 
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text(summary.model_dump_json(indent=2), encoding="utf-8")
-    print(f"Summary saved to {out_path}")
+    for transcript_path in transcript_paths:
+        if not transcript_path.exists():
+            print(f"Skipping missing file: {transcript_path}")
+            had_errors = True
+            continue
+        if not transcript_path.is_file():
+            print(f"Skipping non-file path: {transcript_path}")
+            had_errors = True
+            continue
+
+        try:
+            date = parse_date_from_filename(transcript_path.name)
+            transcript = load_transcript(transcript_path)
+
+            print(f"Summarizing: {transcript_path.name}")
+            summary = summarize(transcript, date, api_key)
+
+            if args.output:
+                out_path = (
+                    args.output if args.output.is_absolute() else (PROJECT_ROOT / args.output).resolve()
+                )
+            else:
+                out_path = PRIVATE_SUMMARIES / f"{transcript_path.stem}_summary.json"
+
+            out_path.parent.mkdir(parents=True, exist_ok=True)
+            out_path.write_text(summary.model_dump_json(indent=2), encoding="utf-8")
+            print(f"Summary saved to {out_path}")
+        except Exception as e:
+            print(f"Failed to summarize {transcript_path}: {e}")
+            had_errors = True
+
+    if had_errors:
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

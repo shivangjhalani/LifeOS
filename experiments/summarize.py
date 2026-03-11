@@ -213,6 +213,11 @@ def main() -> None:
         "-o", "--output", type=Path, default=None,
         help="Output path for single-input mode only (default: private/summaries/<stem>_summary.json)",
     )
+    parser.add_argument(
+        "--no-skip",
+        action="store_true",
+        help="Overwrite existing summaries instead of skipping",
+    )
     args = parser.parse_args()
 
     transcript_paths = resolve_transcript_paths(args.transcripts)
@@ -239,19 +244,23 @@ def main() -> None:
             had_errors = True
             continue
 
+        if args.output:
+            out_path = (
+                args.output if args.output.is_absolute() else (PROJECT_ROOT / args.output).resolve()
+            )
+        else:
+            out_path = PRIVATE_SUMMARIES / f"{transcript_path.stem}_summary.json"
+
+        if out_path.exists() and not args.no_skip:
+            print(f"Skip {transcript_path.name} (summary exists)")
+            continue
+
         try:
             date = parse_date_from_filename(transcript_path.name)
             transcript = load_transcript(transcript_path)
 
             print(f"Summarizing: {transcript_path.name}")
             summary = summarize(transcript, date, api_key)
-
-            if args.output:
-                out_path = (
-                    args.output if args.output.is_absolute() else (PROJECT_ROOT / args.output).resolve()
-                )
-            else:
-                out_path = PRIVATE_SUMMARIES / f"{transcript_path.stem}_summary.json"
 
             out_path.parent.mkdir(parents=True, exist_ok=True)
             out_path.write_text(summary.model_dump_json(indent=2), encoding="utf-8")

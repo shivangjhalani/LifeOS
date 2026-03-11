@@ -1,6 +1,16 @@
 private/
-.devenv/
-devenv.yaml
+
+# Devenv
+.devenv*
+devenv.local.nix
+devenv.local.yaml
+
+# direnv
+.direnv
+
+# pre-commit
+.pre-commit-config.yaml
+
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

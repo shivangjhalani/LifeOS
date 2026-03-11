@@ -5,6 +5,8 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "chonkie>=1.6.0",
+    "chromadb>=1.5.5",
     "dotenv>=0.9.9",
     "google-genai>=1.0.0",
     "groq>=1.0.0",

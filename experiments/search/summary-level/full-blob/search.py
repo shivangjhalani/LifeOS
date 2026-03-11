@@ -10,6 +10,13 @@ from shared import get_chromadb_client, get_embed_fn
 PERSIST_DIR = Path(__file__).parent / ".chromadb"
 
 
+def _compact(text: str, max_chars: int = 220) -> str:
+    one_line = " ".join(text.split())
+    if len(one_line) <= max_chars:
+        return one_line
+    return one_line[: max_chars - 3] + "..."
+
+
 def main():
     client = get_chromadb_client(PERSIST_DIR)
     embed_fn = get_embed_fn("RETRIEVAL_QUERY")
@@ -22,13 +29,17 @@ def main():
             break
 
         results = col.query(query_texts=[query], n_results=10)
-        for i, (doc, meta, dist) in enumerate(
-            zip(results["documents"][0], results["metadatas"][0], results["distances"][0])
-        ):
-            print(f"\n--- #{i+1} (dist={dist:.4f}) ---")
-            print(f"  Title: {meta['title']}")
-            print(f"  Date:  {meta['date']}")
-            print(f"  Text:  {doc[:200]}...")
+        docs = results.get("documents", [[]])[0]
+        metas = results.get("metadatas", [[]])[0]
+        dists = results.get("distances", [[]])[0]
+
+        if not docs:
+            print("No results.")
+            continue
+
+        for rank, (doc, meta, dist) in enumerate(zip(docs, metas, dists), start=1):
+            embedding_for = (meta or {}).get("embedding_for", "full_blob")
+            print(f"{rank:>2}. dist={dist:.4f} | for={embedding_for} | {_compact(doc)}")
 
 
 if __name__ == "__main__":

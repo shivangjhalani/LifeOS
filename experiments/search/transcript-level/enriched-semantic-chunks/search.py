@@ -20,7 +20,7 @@ def main():
     embed_fn = get_embed_fn("RETRIEVAL_QUERY")
     col = client.get_collection("enriched_semantic_chunks", embedding_function=embed_fn)
 
-    results = col.query(query_texts=[query], n_results=10)
+    results = col.query(query_texts=[query], n_results=5)
     docs = results.get("documents", [[]])[0]
     metas = results.get("metadatas", [[]])[0]
     dists = results.get("distances", [[]])[0]

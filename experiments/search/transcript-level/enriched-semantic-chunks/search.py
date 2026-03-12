@@ -1,4 +1,4 @@
-"""Search full-blob summary embeddings. Usage: uv run search.py "query" """
+"""Search enriched transcript chunks. Usage: uv run search.py "query" """
 
 import sys
 from pathlib import Path
@@ -18,7 +18,7 @@ def main():
 
     client = get_chromadb_client(PERSIST_DIR)
     embed_fn = get_embed_fn("RETRIEVAL_QUERY")
-    col = client.get_collection("full_blob", embedding_function=embed_fn)
+    col = client.get_collection("enriched_semantic_chunks", embedding_function=embed_fn)
 
     results = col.query(query_texts=[query], n_results=10)
     docs = results.get("documents", [[]])[0]
@@ -31,7 +31,8 @@ def main():
 
     print(f"Top {len(docs)} results for: {query}\n")
     for rank, (doc, meta, dist) in enumerate(zip(docs, metas, dists), start=1):
-        embedding_for = (meta or {}).get("embedding_for", "full_blob")
+        chunk_index = (meta or {}).get("chunk_index", "?")
+        embedding_for = f"enriched_chunk(index={chunk_index})"
         print(f"[{rank:02d}] dist={dist:.4f}")
         print(f"for: {embedding_for}")
         print(f"content:\n{doc}\n")

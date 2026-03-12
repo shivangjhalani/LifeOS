@@ -1,4 +1,4 @@
-"""Interactive semantic search over transcript chunks."""
+"""Search transcript semantic chunks. Usage: uv run search.py "query" """
 
 import sys
 from pathlib import Path
@@ -11,25 +11,31 @@ PERSIST_DIR = Path(__file__).parent / ".chromadb"
 
 
 def main():
+    query = " ".join(sys.argv[1:]).strip()
+    if not query:
+        print("Usage: uv run search.py \"your query here\"")
+        sys.exit(1)
+
     client = get_chromadb_client(PERSIST_DIR)
     embed_fn = get_embed_fn("RETRIEVAL_QUERY")
     col = client.get_collection("semantic_chunks", embedding_function=embed_fn)
 
-    print("Transcript semantic-chunk search (type 'q' to quit)")
-    while True:
-        query = input("\nQuery: ").strip()
-        if query.lower() == "q":
-            break
+    results = col.query(query_texts=[query], n_results=10)
+    docs = results.get("documents", [[]])[0]
+    metas = results.get("metadatas", [[]])[0]
+    dists = results.get("distances", [[]])[0]
 
-        results = col.query(query_texts=[query], n_results=10)
-        for i, (doc, meta, dist) in enumerate(
-            zip(results["documents"][0], results["metadatas"][0], results["distances"][0])
-        ):
-            print(f"\n--- #{i+1} (dist={dist:.4f}) ---")
-            print(f"  Title: {meta['title']}")
-            print(f"  Date:  {meta['date']}")
-            print(f"  Chunk: {meta['chunk_index']}")
-            print(f"  Text:  {doc[:300]}...")
+    if not docs:
+        print("No results.")
+        return
+
+    print(f"Top {len(docs)} results for: {query}\n")
+    for rank, (doc, meta, dist) in enumerate(zip(docs, metas, dists), start=1):
+        chunk_index = (meta or {}).get("chunk_index", "?")
+        embedding_for = f"semantic_chunk(index={chunk_index})"
+        print(f"[{rank:02d}] dist={dist:.4f}")
+        print(f"for: {embedding_for}")
+        print(f"content:\n{doc}\n")
 
 
 if __name__ == "__main__":

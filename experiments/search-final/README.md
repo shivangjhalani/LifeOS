@@ -2,9 +2,8 @@
 
 ## Layer 1: Summary Retrieval
 
-- Goal: find the right journal entry.
 - Indexing idea: split each summary into a few semantically tight field-level documents, instead of embedding one big blob.
-- One embedded document/vector:
+- 4 embedded document/vector for each summary:
   - `title + topics + key_learnings`
   - `title + topics + active_questions`
   - `title + topics + memorable_quotes`
@@ -22,17 +21,12 @@ Why this is the best layer-1 choice:
 
 - Goal: find the exact moment/passage inside a journal.
 - Indexing idea: split the transcript into semantic chunks, then prepend light summary context.
-- One embedded document/vector:
+- Multiple embedded document/vector per journal, each contains:
   - `[title | topics] + one semantic transcript chunk`
 - Chunking method:
-  - semantic chunking, not fixed-size slicing
-  - chunk boundary follows meaning shifts in the transcript
+  - semantic chunking
 
 Why this is the best layer-2 choice:
-
-- It was the best transcript-level method in evaluation.
-- It beats raw transcript chunks because `title/topics` helps disambiguate the journal.
-- It is better for passage retrieval than summary-level methods, because it returns the actual relevant excerpt.
 
 ## Why Two Layers
 

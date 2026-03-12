@@ -32,8 +32,10 @@ def main():
     print(f"Top {len(docs)} results for: {query}\n")
     for rank, (doc, meta, dist) in enumerate(zip(docs, metas, dists), start=1):
         chunk_index = (meta or {}).get("chunk_index", "?")
+        title = (meta or {}).get("title", "?")
         embedding_for = f"enriched_chunk(index={chunk_index})"
         print(f"[{rank:02d}] dist={dist:.4f}")
+        print(f"title: {title}")
         print(f"for: {embedding_for}")
         print(f"content:\n{doc}\n")
 

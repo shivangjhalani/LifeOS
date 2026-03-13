@@ -2,8 +2,10 @@ import json
 import os
 from pathlib import Path
 
+import litellm
 from dotenv import load_dotenv
-from groq import Groq
+
+litellm.drop_params = True
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parent
@@ -26,7 +28,6 @@ def _resolve_path_from_env(key: str, default: str) -> Path:
 
 
 def main():
-    client = Groq()
     input_dir = _resolve_path_from_env("INPUT_AUDIO_DIR", "./input")
     output_dir = _resolve_path_from_env("OUTPUT_DIR", "./output")
 
@@ -39,7 +40,7 @@ def main():
         return
 
     output_dir.mkdir(parents=True, exist_ok=True)
-    model = os.getenv("MODEL", "whisper-large-v3-turbo")
+    model = os.getenv("MODEL", "groq/whisper-large-v3-turbo")
     language = os.getenv("LANGUAGE") or None
     prompt = os.getenv("TRANS_PROMPT") or None
     response_format = os.getenv("RESPONSE_FORMAT", "verbose_json")
@@ -67,7 +68,7 @@ def main():
 
         with kwargs["file"] as fp:
             kwargs["file"] = fp
-            response = client.audio.transcriptions.create(**kwargs)
+            response = litellm.transcription(**kwargs)
 
         text = getattr(response, "text", "") or ""
         data = response.model_dump() if hasattr(response, "model_dump") else {"text": text}

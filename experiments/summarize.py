@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Summarize transcript JSON files using Gemini 2.5 Flash structured output."""
+"""Summarize transcript JSON files using LiteLLM structured output."""
 
 import argparse
 import glob
@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import List
 
 from dotenv import load_dotenv
-from google import genai
+from litellm import completion
 from pydantic import BaseModel, Field
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -167,26 +167,22 @@ def resolve_transcript_paths(inputs: List[str]) -> List[Path]:
     return deduped
 
 
-def summarize(transcript: dict, date: datetime, api_key: str) -> JournalSummary:
-    """Generate a structured summary via Gemini 2.5 Flash."""
-    client = genai.Client(api_key=api_key)
-    model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+def summarize(transcript: dict, date: datetime) -> JournalSummary:
+    """Generate a structured summary via LiteLLM."""
+    model = os.getenv("GEMINI_MODEL", "gemini/gemini-2.5-flash")
 
     duration_minutes = round(transcript.get("duration", 0) / 60)
     text = transcript["text"].strip()
 
     prompt = SUMMARY_PROMPT.format(duration_minutes=duration_minutes, text=text)
 
-    response = client.models.generate_content(
+    response = completion(
         model=model,
-        contents=prompt,
-        config={
-            "response_mime_type": "application/json",
-            "response_schema": LLMJournalSummary,
-        },
+        messages=[{"role": "user", "content": prompt}],
+        response_format=LLMJournalSummary,
     )
 
-    llm_summary = LLMJournalSummary.model_validate_json(response.text)
+    llm_summary = LLMJournalSummary.model_validate_json(response.choices[0].message.content)
     return JournalSummary(
         date=date,
         duration_minutes=duration_minutes,
@@ -227,8 +223,7 @@ def main() -> None:
     if args.output and len(transcript_paths) > 1:
         parser.error("--output can only be used when summarizing a single transcript.")
 
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
+    if not os.getenv("GEMINI_API_KEY"):
         parser.error("GEMINI_API_KEY not set. Add it to .env (copy from .example.env).")
 
     PRIVATE_SUMMARIES.mkdir(parents=True, exist_ok=True)
@@ -260,7 +255,7 @@ def main() -> None:
             transcript = load_transcript(transcript_path)
 
             print(f"Summarizing: {transcript_path.name}")
-            summary = summarize(transcript, date, api_key)
+            summary = summarize(transcript, date)
 
             out_path.parent.mkdir(parents=True, exist_ok=True)
             out_path.write_text(summary.model_dump_json(indent=2), encoding="utf-8")

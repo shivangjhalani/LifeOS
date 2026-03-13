@@ -1,6 +1,8 @@
 # LifeOS
 
-From carved stone and clay tablets to paper journals and digital notes, humans have always externalized memory and the way they capture life. LifeOS is the next evolution: an AI-native second brain that captures thoughts.
+> Build a garden for your life
+
+From carved stone and clay tablets to paper journals and digital notes, humans have always externalized memory and the way they capture life. **LifeOS** is the next evolution: an AI-native digital garden that captures your thoughts.
 
 ## Contributing
 

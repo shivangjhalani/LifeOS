@@ -4,8 +4,8 @@ import re
 from pathlib import Path
 
 import chromadb
-import chromadb.utils.embedding_functions as ef
 from dotenv import load_dotenv
+from litellm import embedding as litellm_embedding
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 SUMMARIES_DIR = PROJECT_ROOT / "private" / "summaries"
@@ -26,11 +26,30 @@ def get_chromadb_client(persist_dir: str | Path) -> chromadb.ClientAPI:
     return chromadb.PersistentClient(path=str(persist_dir))
 
 
-def get_embed_fn(task_type: str = "RETRIEVAL_DOCUMENT") -> ef.GoogleGeminiEmbeddingFunction:
-    return ef.GoogleGeminiEmbeddingFunction(
-        model_name="gemini-embedding-001",
-        task_type=task_type,
-    )
+class LiteLLMEmbeddingFunction:
+    """ChromaDB-compatible embedding function backed by litellm."""
+
+    def __init__(self, model: str = "gemini/gemini-embedding-001"):
+        self.model = model
+
+    def name(self) -> str:
+        return "litellm_embedding"
+
+    def __call__(self, input: list[str]) -> list[list[float]]:
+        response = litellm_embedding(model=self.model, input=input)
+        return [item["embedding"] for item in response.data]
+
+    def embed_documents(self, documents: list[str]) -> list[list[float]]:
+        return self(documents)
+
+    def embed_query(self, input: list[str] | str) -> list[list[float]] | list[float]:
+        if isinstance(input, str):
+            return self([input])[0]
+        return self(input)
+
+
+def get_embed_fn(task_type: str | None = None) -> LiteLLMEmbeddingFunction:
+    return LiteLLMEmbeddingFunction()
 
 
 def list_items(summary: dict, key: str) -> list[str]:

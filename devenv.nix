@@ -1,27 +1,64 @@
-{ pkgs, lib, config, inputs, ... }:
+{
+  pkgs,
+  lib,
+  config,
+  inputs,
+  ...
+}:
 
 {
-  dotenv.enable = true;
+  # dotenv.enable = true;
+  dotenv.disableHint = true;
 
   # https://devenv.sh/basics/
   env.GREET = "LifeOS";
 
   # https://devenv.sh/packages/
-  packages = [ pkgs.zlib ];
+  packages = [
+    # pkgs.zlib
+  ];
 
   # https://devenv.sh/languages/
-  languages.python = {
+  languages.javascript = {
+    npm.enable = true;
     enable = true;
-    uv = {
+    bun = {
       enable = true;
-      sync.enable = true;
+      package = pkgs.bun;
     };
+    # Enable Language Server
+    lsp.enable = true;
   };
 
-  env.LD_LIBRARY_PATH = lib.makeLibraryPath [
-    pkgs.stdenv.cc.cc.lib
-    pkgs.zlib
-  ];
+  languages.typescript = {
+    enable = true;
+    lsp.enable = true;
+  };
+
+  android = {
+    enable = true;
+    reactNative.enable = true;
+
+    # Minimal SDK components
+    platforms = {
+      version = [ "36" ]; # Android 16 (stable target)
+    };
+
+    buildTools = {
+      version = [ "36.0.0" ];
+    };
+
+    emulator.enable = true;
+    systemImages.enable = true;
+    ndk.enable = false;
+    sources.enable = false;
+    googleAPIs.enable = false;
+  };
+
+  # env.LD_LIBRARY_PATH = lib.makeLibraryPath [
+  #   pkgs.stdenv.cc.cc.lib
+  #   pkgs.zlib
+  # ];
 
   # https://devenv.sh/processes/
   # processes.dev.exec = "${lib.getExe pkgs.watchexec} -n -- ls -la";
@@ -37,7 +74,6 @@
   # https://devenv.sh/basics/
   enterShell = ''
     hello         # Run scripts directly
-    echo "$(python --version | cut -d' ' -f2), uv $(uv --version | cut -d' ' -f2)"
   '';
 
   # https://devenv.sh/tasks/

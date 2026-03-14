@@ -7,7 +7,7 @@
 }:
 
 {
-  # dotenv.enable = true;
+  dotenv.enable = true;
   dotenv.disableHint = true;
 
   # https://devenv.sh/basics/
@@ -15,13 +15,15 @@
 
   # https://devenv.sh/packages/
   packages = [
-    # pkgs.zlib
+    pkgs.nodejs_22
+    pkgs.rsync
   ];
 
   # https://devenv.sh/languages/
   languages.javascript = {
     npm.enable = true;
     enable = true;
+    package = pkgs.nodejs_22;
     bun = {
       enable = true;
       package = pkgs.bun;
@@ -50,7 +52,11 @@
 
     emulator.enable = true;
     systemImages.enable = true;
-    ndk.enable = false;
+    # NDK must be included so Gradle doesn't try to install it into the read-only Nix store.
+    ndk = {
+      enable = true;
+      # version = [ "27.1.12297006" ];
+    };
     sources.enable = false;
     googleAPIs.enable = false;
   };
@@ -72,8 +78,23 @@
   '';
 
   # https://devenv.sh/basics/
+  # Copy Nix Android SDK to writable dir so Gradle can install NDK components (expo-sqlite etc).
+  # The Nix store is read-only; Gradle fails with "SDK directory is not writable" otherwise.
   enterShell = ''
-    hello         # Run scripts directly
+    hello
+    if [ -n "''${ANDROID_HOME:-}" ] && [ ! -w "$ANDROID_HOME" ]; then
+      WRITABLE_SDK="''${XDG_DATA_HOME:-$HOME/.local/share}/android-sdk-lifeos"
+      SOURCE_MARKER="$WRITABLE_SDK/.nix-source"
+      if [ ! -f "$SOURCE_MARKER" ] || [ "$(cat "$SOURCE_MARKER")" != "$ANDROID_HOME" ]; then
+        echo "Copying Android SDK to writable dir (one-time, ~2min)..."
+        mkdir -p "$WRITABLE_SDK"
+        rsync -a --info=progress2 "$ANDROID_HOME/" "$WRITABLE_SDK/" 2>/dev/null || cp -a "$ANDROID_HOME/"* "$WRITABLE_SDK/"
+        chmod -R u+w "$WRITABLE_SDK"
+        echo "$ANDROID_HOME" > "$SOURCE_MARKER"
+      fi
+      export ANDROID_HOME="$WRITABLE_SDK"
+      export ANDROID_SDK_ROOT="$WRITABLE_SDK"
+    fi
   '';
 
   # https://devenv.sh/tasks/
